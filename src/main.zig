@@ -1,24 +1,26 @@
 const std = @import("std");
+const net = std.net;
+const socket_address = net.Address;
+const tcp_stream = net.StreamServer;
+pub const io_mode = .evented;
 
 pub fn main() !void {
-    // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
+    var tcp_stream_server = tcp_stream.init(.{});
+    defer tcp_stream_server.close();
+    const tcp_stream_address = try socket_address.resolveIp("127.0.0.1", 8700);
+    try tcp_stream_server.listen(tcp_stream_address);
 
-    // stdout is for the actual output of your application, for example if you
-    // are implementing gzip, then only the compressed bytes should be sent to
-    // stdout, not any debugging messages.
-    const stdout_file = std.io.getStdOut().writer();
-    var bw = std.io.bufferedWriter(stdout_file);
-    const stdout = bw.writer();
+    while (true) {
+        const tcp_stream_connection = try tcp_stream_server.accept();
+        const bufSize = 4096;
+        var buffer: [bufSize]u8 = undefined;
+        const lines = try tcp_stream_connection.stream.reader().read(&buffer);
+        try tcp_stream_connection.stream.writer()
+            .writeAll("HTTP/1.1 200 OK\r\n\r\nHi from Server");
+        std.debug.print("Your zig is ready and listening at.{}\n{s}\n", .{ tcp_stream_address, buffer[0..lines] });
 
-    try stdout.print("Run `zig build test` to run the tests.\n", .{});
-
-    try bw.flush(); // don't forget to flush!
+        tcp_stream_connection.stream.close();
+    }
 }
 
-test "simple test" {
-    var list = std.ArrayList(i32).init(std.testing.allocator);
-    defer list.deinit(); // try commenting this out and see if zig detects the memory leak!
-    try list.append(42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
-}
+test "simple test" {}
